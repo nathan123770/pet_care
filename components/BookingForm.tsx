@@ -13,6 +13,7 @@ export default function BookingForm() {
   const [date, setDate] = useState("");
   const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
 
   useEffect(() => {
     setDate(todayForInput());
@@ -31,10 +32,16 @@ export default function BookingForm() {
       return;
     }
 
+    if (!address.trim()) {
+      window.alert("请留下住址信息，方便护理师安排上门服务。");
+      return;
+    }
+
     window.alert("预约已提交，我们会尽快联系你确认时间。");
     event.currentTarget.reset();
     setContactName("");
     setPhone("");
+    setAddress("");
     setDate(todayForInput());
   }
 
@@ -122,6 +129,21 @@ export default function BookingForm() {
           placeholder="请输入手机号"
           type="tel"
           value={phone}
+        />
+      </div>
+
+      <div className="my-3">
+        <label className="mb-[7px] block text-[13px] font-bold text-[var(--muted)]" htmlFor="address">
+          住址信息
+        </label>
+        <input
+          className="h-11 w-full rounded-lg border border-[var(--line)] bg-white px-3 text-[var(--ink)] placeholder:text-neutral-400"
+          id="address"
+          name="address"
+          onChange={(event) => setAddress(event.target.value)}
+          placeholder="请输入上门住址"
+          type="text"
+          value={address}
         />
       </div>
 
