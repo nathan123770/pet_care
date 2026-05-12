@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #24201d;
+  --muted: #6f655d;
+  --line: #e6ddd3;
+  --paper: #fffaf3;
+  --cream: #f6efe5;
+  --sage: #6f8f72;
+  --sage-dark: #49694d;
+  --coral: #e77c69;
+  --blue: #537f9b;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  line-height: 1.5;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+img {
+  display: block;
+}
