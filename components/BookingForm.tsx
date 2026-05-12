@@ -9,11 +9,40 @@ function todayForInput() {
   return local.toISOString().slice(0, 10);
 }
 
+const regionOptions = {
+  上海市: {
+    上海市: ["黄浦区", "徐汇区", "长宁区", "静安区", "普陀区", "浦东新区"],
+  },
+  北京市: {
+    北京市: ["东城区", "西城区", "朝阳区", "海淀区", "丰台区", "通州区"],
+  },
+  江苏省: {
+    南京市: ["玄武区", "秦淮区", "建邺区", "鼓楼区", "江宁区"],
+    苏州市: ["姑苏区", "吴中区", "相城区", "工业园区", "昆山市"],
+  },
+  浙江省: {
+    杭州市: ["上城区", "拱墅区", "西湖区", "滨江区", "萧山区"],
+    宁波市: ["海曙区", "江北区", "鄞州区", "镇海区", "北仑区"],
+  },
+  广东省: {
+    广州市: ["越秀区", "荔湾区", "天河区", "海珠区", "番禺区"],
+    深圳市: ["福田区", "罗湖区", "南山区", "宝安区", "龙岗区"],
+  },
+} as const;
+
+type Province = keyof typeof regionOptions;
+type City = keyof (typeof regionOptions)[Province];
+
 export default function BookingForm() {
   const [date, setDate] = useState("");
   const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
+  const [province, setProvince] = useState("");
+  const [city, setCity] = useState("");
+  const [district, setDistrict] = useState("");
+
+  const cityOptions = province ? Object.keys(regionOptions[province as Province]) : [];
+  const districtOptions = province && city ? regionOptions[province as Province][city as City] : [];
 
   useEffect(() => {
     setDate(todayForInput());
@@ -32,8 +61,8 @@ export default function BookingForm() {
       return;
     }
 
-    if (!address.trim()) {
-      window.alert("请留下住址信息，方便护理师安排上门服务。");
+    if (!province || !city || !district) {
+      window.alert("请选择省份、城市和区，方便护理师安排上门服务。");
       return;
     }
 
@@ -41,7 +70,9 @@ export default function BookingForm() {
     event.currentTarget.reset();
     setContactName("");
     setPhone("");
-    setAddress("");
+    setProvince("");
+    setCity("");
+    setDistrict("");
     setDate(todayForInput());
   }
 
@@ -133,18 +164,62 @@ export default function BookingForm() {
       </div>
 
       <div className="my-3">
-        <label className="mb-[7px] block text-[13px] font-bold text-[var(--muted)]" htmlFor="address">
+        <span className="mb-[7px] block text-[13px] font-bold text-[var(--muted)]">
           住址信息
-        </label>
-        <input
-          className="h-11 w-full rounded-lg border border-[var(--line)] bg-white px-3 text-[var(--ink)] placeholder:text-neutral-400"
-          id="address"
-          name="address"
-          onChange={(event) => setAddress(event.target.value)}
-          placeholder="请输入上门住址"
-          type="text"
-          value={address}
-        />
+        </span>
+        <div className="grid grid-cols-3 gap-2 max-[560px]:grid-cols-1">
+          <select
+            aria-label="省份"
+            className="h-11 w-full rounded-lg border border-[var(--line)] bg-white px-3 text-[var(--ink)]"
+            name="province"
+            onChange={(event) => {
+              setProvince(event.target.value);
+              setCity("");
+              setDistrict("");
+            }}
+            value={province}
+          >
+            <option value="">省份</option>
+            {Object.keys(regionOptions).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="城市"
+            className="h-11 w-full rounded-lg border border-[var(--line)] bg-white px-3 text-[var(--ink)]"
+            disabled={!province}
+            name="city"
+            onChange={(event) => {
+              setCity(event.target.value);
+              setDistrict("");
+            }}
+            value={city}
+          >
+            <option value="">城市</option>
+            {cityOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="区"
+            className="h-11 w-full rounded-lg border border-[var(--line)] bg-white px-3 text-[var(--ink)]"
+            disabled={!city}
+            name="district"
+            onChange={(event) => setDistrict(event.target.value)}
+            value={district}
+          >
+            <option value="">区</option>
+            {districtOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <button
