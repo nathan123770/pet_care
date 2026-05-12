@@ -11,6 +11,7 @@ function todayForInput() {
 
 export default function BookingForm() {
   const [date, setDate] = useState("");
+  const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
 
   useEffect(() => {
@@ -20,6 +21,11 @@ export default function BookingForm() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (!contactName.trim()) {
+      window.alert("请留下联系人，方便护理师确认档期。");
+      return;
+    }
+
     if (!phone.trim()) {
       window.alert("请留下联系电话，方便护理师确认档期。");
       return;
@@ -27,6 +33,7 @@ export default function BookingForm() {
 
     window.alert("预约已提交，我们会尽快联系你确认时间。");
     event.currentTarget.reset();
+    setContactName("");
     setPhone("");
     setDate(todayForInput());
   }
@@ -85,6 +92,21 @@ export default function BookingForm() {
           onChange={(event) => setDate(event.target.value)}
           type="date"
           value={date}
+        />
+      </div>
+
+      <div className="my-3">
+        <label className="mb-[7px] block text-[13px] font-bold text-[var(--muted)]" htmlFor="contactName">
+          联系人
+        </label>
+        <input
+          className="h-11 w-full rounded-lg border border-[var(--line)] bg-white px-3 text-[var(--ink)] placeholder:text-neutral-400"
+          id="contactName"
+          name="contactName"
+          onChange={(event) => setContactName(event.target.value)}
+          placeholder="请输入联系人姓名"
+          type="text"
+          value={contactName}
         />
       </div>
 
