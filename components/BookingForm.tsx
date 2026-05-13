@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { ClipboardEvent, FormEvent, useEffect, useState } from "react";
 
 function todayForInput() {
   const now = new Date();
@@ -9,7 +9,9 @@ function todayForInput() {
   return local.toISOString().slice(0, 10);
 }
 
-const regionOptions = {
+type RegionOptions = Record<string, Record<string, readonly string[]>>;
+
+const regionOptions: RegionOptions = {
   上海市: {
     上海市: ["黄浦区", "徐汇区", "长宁区", "静安区", "普陀区", "浦东新区"],
   },
@@ -28,10 +30,92 @@ const regionOptions = {
     广州市: ["越秀区", "荔湾区", "天河区", "海珠区", "番禺区"],
     深圳市: ["福田区", "罗湖区", "南山区", "宝安区", "龙岗区"],
   },
-} as const;
+};
 
-type Province = keyof typeof regionOptions;
-type City = keyof (typeof regionOptions)[Province];
+const mapAddressOptions = [
+  {
+    city: "上海市",
+    detail: "花园路 88 号",
+    district: "静安区",
+    name: "毛茸日记静安店",
+    province: "上海市",
+    x: "52%",
+    y: "42%",
+  },
+  {
+    city: "上海市",
+    detail: "南京西路 1266 号",
+    district: "静安区",
+    name: "南京西路服务点",
+    province: "上海市",
+    x: "62%",
+    y: "36%",
+  },
+  {
+    city: "上海市",
+    detail: "陆家嘴环路 1000 号",
+    district: "浦东新区",
+    name: "陆家嘴服务点",
+    province: "上海市",
+    x: "74%",
+    y: "54%",
+  },
+  {
+    city: "深圳市",
+    detail: "深南大道 2008 号",
+    district: "福田区",
+    name: "福田中心服务点",
+    province: "广东省",
+    x: "44%",
+    y: "62%",
+  },
+];
+
+type AddressTab = "province" | "city" | "district";
+
+function compactAddress(address: string) {
+  return address.replace(/\s+/g, "").replace(/[，,。；;]/g, "");
+}
+
+function parseAddress(address: string) {
+  const compacted = compactAddress(address);
+
+  for (const provinceName of Object.keys(regionOptions)) {
+    const cities = regionOptions[provinceName];
+
+    for (const cityName of Object.keys(cities)) {
+      for (const districtName of cities[cityName]) {
+        if (!compacted.includes(districtName)) {
+          continue;
+        }
+
+        const hasProvince = compacted.includes(provinceName);
+        const hasCity = compacted.includes(cityName);
+
+        if (!hasProvince && !hasCity) {
+          continue;
+        }
+
+        let detail = address;
+        detail = detail.replace(provinceName, "");
+        if (cityName !== provinceName) {
+          detail = detail.replace(cityName, "");
+        }
+        detail = detail.replace(districtName, "");
+        detail = detail.replace(/^[\s，,。；;-]+/, "").trim();
+
+        return {
+          city: cityName,
+          detail,
+          district: districtName,
+          province: provinceName,
+        };
+      }
+    }
+  }
+
+  return null;
+}
 
 export default function BookingForm() {
   const [date, setDate] = useState("");
@@ -40,9 +124,14 @@ export default function BookingForm() {
   const [province, setProvince] = useState("");
   const [city, setCity] = useState("");
   const [district, setDistrict] = useState("");
+  const [detailAddress, setDetailAddress] = useState("");
+  const [addressTab, setAddressTab] = useState<AddressTab>("province");
+  const [isAddressPickerOpen, setIsAddressPickerOpen] = useState(false);
+  const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
 
-  const cityOptions = province ? Object.keys(regionOptions[province as Province]) : [];
-  const districtOptions = province && city ? regionOptions[province as Province][city as City] : [];
+  const cityOptions = province ? Object.keys(regionOptions[province]) : [];
+  const districtOptions = province && city ? regionOptions[province][city] : [];
+  const selectedRegion = [province, city, district].filter(Boolean).join(" / ");
 
   useEffect(() => {
     setDate(todayForInput());
@@ -66,6 +155,11 @@ export default function BookingForm() {
       return;
     }
 
+    if (!detailAddress.trim()) {
+      window.alert("请填写详细地址，方便护理师准确上门。");
+      return;
+    }
+
     window.alert("预约已提交，我们会尽快联系你确认时间。");
     event.currentTarget.reset();
     setContactName("");
@@ -73,7 +167,28 @@ export default function BookingForm() {
     setProvince("");
     setCity("");
     setDistrict("");
+    setDetailAddress("");
+    setAddressTab("province");
+    setIsAddressPickerOpen(false);
+    setIsMapPickerOpen(false);
     setDate(todayForInput());
+  }
+
+  function handleAddressPaste(event: ClipboardEvent<HTMLInputElement>) {
+    const pastedAddress = event.clipboardData.getData("text").trim();
+    const parsedAddress = parseAddress(pastedAddress);
+
+    if (!parsedAddress) {
+      return;
+    }
+
+    event.preventDefault();
+    setProvince(parsedAddress.province);
+    setCity(parsedAddress.city);
+    setDistrict(parsedAddress.district);
+    setDetailAddress(parsedAddress.detail);
+    setAddressTab("district");
+    setIsAddressPickerOpen(false);
   }
 
   return (
@@ -167,58 +282,199 @@ export default function BookingForm() {
         <span className="mb-[7px] block text-[13px] font-bold text-[var(--muted)]">
           住址信息
         </span>
-        <div className="grid grid-cols-3 gap-2 max-[560px]:grid-cols-1">
-          <select
-            aria-label="省份"
-            className="h-11 w-full rounded-lg border border-[var(--line)] bg-white px-3 text-[var(--ink)]"
-            name="province"
-            onChange={(event) => {
-              setProvince(event.target.value);
-              setCity("");
-              setDistrict("");
+        <div className="grid gap-2">
+          <button
+            aria-expanded={isAddressPickerOpen}
+            className="flex h-11 w-full cursor-pointer items-center justify-between rounded-lg border border-[var(--line)] bg-white px-3 text-left text-[var(--ink)]"
+            onClick={() => {
+              setIsAddressPickerOpen((isOpen) => !isOpen);
+              setIsMapPickerOpen(false);
             }}
-            value={province}
+            type="button"
           >
-            <option value="">省份</option>
-            {Object.keys(regionOptions).map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="城市"
-            className="h-11 w-full rounded-lg border border-[var(--line)] bg-white px-3 text-[var(--ink)]"
-            disabled={!province}
-            name="city"
-            onChange={(event) => {
-              setCity(event.target.value);
-              setDistrict("");
-            }}
-            value={city}
-          >
-            <option value="">城市</option>
-            {cityOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="区"
-            className="h-11 w-full rounded-lg border border-[var(--line)] bg-white px-3 text-[var(--ink)]"
-            disabled={!city}
-            name="district"
-            onChange={(event) => setDistrict(event.target.value)}
-            value={district}
-          >
-            <option value="">区</option>
-            {districtOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+            <span className={selectedRegion ? "" : "text-neutral-400"}>
+              {selectedRegion || "请选择省 / 市 / 区"}
+            </span>
+            <span aria-hidden="true" className="text-sm text-[var(--muted)]">
+              ▾
+            </span>
+          </button>
+
+          {isAddressPickerOpen ? (
+            <div className="rounded-lg border border-[var(--line)] bg-white p-3 shadow-[0_10px_24px_rgba(36,32,29,0.12)]">
+              <div className="mb-3 grid grid-cols-3 border-b border-[var(--line)] text-sm font-bold">
+                {(["province", "city", "district"] as AddressTab[]).map((tab) => (
+                  <button
+                    className={`border-b-2 px-2 pb-2 text-left ${
+                      addressTab === tab
+                        ? "border-[var(--coral)] text-[var(--ink)]"
+                        : "border-transparent text-[var(--muted)]"
+                    }`}
+                    key={tab}
+                    onClick={() => setAddressTab(tab)}
+                    type="button"
+                  >
+                    {tab === "province" ? province || "省份" : null}
+                    {tab === "city" ? city || "城市" : null}
+                    {tab === "district" ? district || "区县" : null}
+                  </button>
+                ))}
+              </div>
+
+              {addressTab === "province" ? (
+                <div className="grid grid-cols-3 gap-2 text-sm max-[560px]:grid-cols-2">
+                  {Object.keys(regionOptions).map((option) => (
+                    <button
+                      className={`min-h-9 rounded-lg border px-2 text-left ${
+                        province === option
+                          ? "border-[var(--coral)] bg-[rgba(234,117,98,0.1)] text-[var(--ink)]"
+                          : "border-[var(--line)] text-[var(--muted)]"
+                      }`}
+                      key={option}
+                      onClick={() => {
+                        setProvince(option);
+                        setCity("");
+                        setDistrict("");
+                        setAddressTab("city");
+                      }}
+                      type="button"
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {addressTab === "city" ? (
+                <div className="grid grid-cols-3 gap-2 text-sm max-[560px]:grid-cols-2">
+                  {cityOptions.length ? (
+                    cityOptions.map((option) => (
+                      <button
+                        className={`min-h-9 rounded-lg border px-2 text-left ${
+                          city === option
+                            ? "border-[var(--coral)] bg-[rgba(234,117,98,0.1)] text-[var(--ink)]"
+                            : "border-[var(--line)] text-[var(--muted)]"
+                        }`}
+                        key={option}
+                        onClick={() => {
+                          setCity(option);
+                          setDistrict("");
+                          setAddressTab("district");
+                        }}
+                        type="button"
+                      >
+                        {option}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="col-span-full m-0 text-sm text-[var(--muted)]">请先选择省份</p>
+                  )}
+                </div>
+              ) : null}
+
+              {addressTab === "district" ? (
+                <div className="grid grid-cols-3 gap-2 text-sm max-[560px]:grid-cols-2">
+                  {districtOptions.length ? (
+                    districtOptions.map((option) => (
+                      <button
+                        className={`min-h-9 rounded-lg border px-2 text-left ${
+                          district === option
+                            ? "border-[var(--coral)] bg-[rgba(234,117,98,0.1)] text-[var(--ink)]"
+                            : "border-[var(--line)] text-[var(--muted)]"
+                        }`}
+                        key={option}
+                        onClick={() => {
+                          setDistrict(option);
+                          setIsAddressPickerOpen(false);
+                        }}
+                        type="button"
+                      >
+                        {option}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="col-span-full m-0 text-sm text-[var(--muted)]">请先选择城市</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-[1fr_auto] gap-2 max-[560px]:grid-cols-1">
+            <input
+              className="h-11 w-full rounded-lg border border-[var(--line)] bg-white px-3 text-[var(--ink)] placeholder:text-neutral-400"
+              id="detailAddress"
+              name="detailAddress"
+              onChange={(event) => setDetailAddress(event.target.value)}
+              onPaste={handleAddressPaste}
+              placeholder="粘贴完整地址，或填写街道门牌号"
+              type="text"
+              value={detailAddress}
+            />
+            <button
+              className="h-11 cursor-pointer rounded-lg border border-[var(--line)] bg-white px-3 text-sm font-bold text-[var(--ink)]"
+              onClick={() => {
+                setIsMapPickerOpen((isOpen) => !isOpen);
+                setIsAddressPickerOpen(false);
+              }}
+              type="button"
+            >
+              地图选点
+            </button>
+          </div>
+
+          {isMapPickerOpen ? (
+            <div className="rounded-lg border border-[var(--line)] bg-white p-3">
+              <div className="relative h-40 overflow-hidden rounded-lg border border-[var(--line)] bg-[linear-gradient(135deg,#e8f2ef_0%,#f9efe5_52%,#e7edf7_100%)]">
+                <div className="absolute left-[10%] right-[10%] top-1/2 h-px bg-white/80" />
+                <div className="absolute bottom-[16%] left-1/2 top-[14%] w-px bg-white/80" />
+                {mapAddressOptions.map((option) => (
+                  <button
+                    aria-label={`选择${option.name}`}
+                    className="absolute grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-white bg-[var(--coral)] text-xs font-black text-white shadow-[0_10px_24px_rgba(36,32,29,0.18)]"
+                    key={option.name}
+                    onClick={() => {
+                      setProvince(option.province);
+                      setCity(option.city);
+                      setDistrict(option.district);
+                      setDetailAddress(option.detail);
+                      setAddressTab("district");
+                      setIsMapPickerOpen(false);
+                    }}
+                    style={{ left: option.x, top: option.y }}
+                    type="button"
+                  >
+                    ·
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 grid gap-2">
+                {mapAddressOptions.map((option) => (
+                  <button
+                    className="rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-left text-sm text-[var(--ink)]"
+                    key={option.name}
+                    onClick={() => {
+                      setProvince(option.province);
+                      setCity(option.city);
+                      setDistrict(option.district);
+                      setDetailAddress(option.detail);
+                      setAddressTab("district");
+                      setIsMapPickerOpen(false);
+                    }}
+                    type="button"
+                  >
+                    <strong className="block">{option.name}</strong>
+                    <span className="text-[var(--muted)]">
+                      {option.province}
+                      {option.city}
+                      {option.district}
+                      {option.detail}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
